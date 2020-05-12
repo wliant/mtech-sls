@@ -11,10 +11,11 @@ import glob
 import shutil
 
 class CumulativeRewardLogger(TrainIntervalLogger):
-    def __init__(self, env, filename, interval=20):
+    def __init__(self, env, filename, metricFile, interval=20):
         TrainIntervalLogger.__init__(self, interval)
         self.cumulative_reward = 0
         self.filename = filename
+        self.metricFile = metricFile
         self.data = []
         self.env = env
     def on_train_begin(self, logs):
@@ -37,11 +38,15 @@ class CumulativeRewardLogger(TrainIntervalLogger):
             self.progbar.update((self.step % self.interval) + 1, values=values, force=True)
         self.step += 1
         self.metrics.append(logs['metrics'])
+
         if len(self.info_names) > 0:
             self.infos.append([logs['info'][k] for k in self.info_names])
     def on_train_end(self, logs):
         np_data = np.array(self.data)
         np.savetxt(self.filename, np_data)
+        np_metric_data = np.array(self.metrics)
+        np.savetxt(self.metricFile, np_metric_data)
+
 class TestCallback(TrainIntervalLogger):
     def __init__(self, env, filename, interval=20):
         TrainIntervalLogger.__init__(self, interval)
@@ -71,7 +76,7 @@ class TestCallback(TrainIntervalLogger):
         np_data = np.array(self.data)
         np.savetxt(self.filename, np_data)
 class Evaluator:
-    def __init__(self, agent_creator, env_creator, name):
+    def __init__(self, agent_creator, env_creator, name, quiet=False):
         self.agent_creator = agent_creator
         self.env_creator = env_creator
         self.folder_name = "evaluate_{}".format(name)
@@ -79,34 +84,74 @@ class Evaluator:
             shutil.rmtree(self.folder_name)
         os.mkdir(self.folder_name)
         self.weight_file = "{}/weights.h5f".format(self.folder_name)
+        self.log_file = os.path.join(self.folder_name, "log.log")
+        self.quiet = quiet
 
-    def train(self, repeat=100, showDiagram=True):
+
+    def log(self, text):
+        with open(self.log_file, 'a') as outfile:
+            outfile.write(text + '\n')
+        if not self.quiet:
+            print(text)
+
+    def train(self, repeat=100):
+        train_start = timeit.default_timer()
+
         best_total_reward = float('-inf')
         for i in range(repeat):
             agent = self.agent_creator()
-            print(agent.metrics_names)
+            #print(agent.metrics_names)
             env = self.env_creator()
-            filename = os.path.join(self.folder_name, "train_{}_reward.csv".format(i+1))
-            steps = env.frame_bound[1] - env.frame_bound[0] -1
-            print("starting train {}".format(i+1))
+            rewardFilename = os.path.join(self.folder_name, "train_{}_reward.csv".format(i+1))
+            rewardFigureFile = os.path.join(self.folder_name, "train_{}_reward.png".format(i+1))
+            metricFile = os.path.join(self.folder_name, "train_{}_metric.csv".format(i+1))
+            renderAllFile = os.path.join(self.folder_name, "train_{}_render_all.png".format(i+1))
             
-            agent.fit(env, nb_steps=steps, visualize=False, verbose=0, callbacks=[CumulativeRewardLogger(env, filename, interval=steps/5)])
-            data = np.loadtxt(filename)
+            steps = env.frame_bound[1] - env.frame_bound[0] -1
+            self.log("starting train {}".format(i+1))
+            
+            agent.fit(env, nb_steps=steps, visualize=False, verbose=0, callbacks=[CumulativeRewardLogger(env, rewardFilename, metricFile, interval=steps/5)])
+
+            data = np.loadtxt(rewardFilename)
             max_data = np.max(data, axis=0)
             min_data = np.min(data, axis=0)
             mean_data = np.mean(data, axis=0)
-            print()
-            print("train {} completed. total_reward: {} total_profit: {}".format(i+1, env._total_reward, env._total_profit))
-            print("min reward: {}, max reward: {}, mean_reward: {}".format(min_data[1], max_data[1], mean_data[1]))
-            if showDiagram:
-                plt.cla()
-                env.render_all()
-                plt.show()
-                plt.plot(data[:, [0]], data[:, [2]])
+            duration = timeit.default_timer() - train_start
+            self.log("train {} completed. took {:.3f} seconds, total_reward: {} total_profit: {}".format(i+1, duration, env._total_reward, env._total_profit))
+            self.log("min reward: {}, max reward: {}, mean_reward: {}".format(min_data[1], max_data[1], mean_data[1]))
+
+            metrics = np.loadtxt("evaluate_dqn/train_1_metric.csv")
+            col = np.array([[i+1] for i in range(len(metrics))])
+            m = np.zeros((metrics.shape[0],metrics.shape[1]+1))
+            m[:, 1:] = metrics
+            m[:, [0]] = col
+            metrics = m[~np.isnan(m).any(axis=1)]
+            plt.close()
+            env.render_all()
+            plt.savefig(renderAllFile)
+            plt.show()
+            
+            plt.close()
+            plt.plot(data[:, [0]], data[:, [2]])
+            plt.xlabel('steps')
+            plt.ylabel('Cummulative Reward')
+            plt.savefig(rewardFigureFile)
+            plt.show()
+            
+            plt.close()
+
+            j = 1
+            for metric_name in agent.metrics_names:
+                f = os.path.join(self.folder_name, "train_{}_{}.png".format(i+1, metric_name))
+                plt.close()
+                plt.plot(metrics[:, [0]], metrics[:, [j]])
+                j+=1
                 plt.xlabel('steps')
-                plt.ylabel('Cummulative Reward')
+                plt.ylabel(metric_name)
+                plt.savefig(f)
                 plt.show()
-            print()
+                
+
             if env._total_reward > best_total_reward:
                 agent.save_weights(self.weight_file, overwrite=True)
 
@@ -127,7 +172,7 @@ class Evaluator:
         plt.plot(steps, average_cummulative_reward)
         plt.xlabel('steps')
         plt.ylabel('Average Cummulative Reward')
-        plt.title('Average Cummulative Reward accross steps')
+        plt.title('Average Cummulative Reward across experiment')
         plt.savefig("{}/acr.png".format(self.folder_name))
         if showDiagram:
             plt.show()
@@ -149,9 +194,10 @@ class Evaluator:
         print()
         steps = data[:, [0]]
         average_cummulative_reward = data[:, [2]]
-        plt.clf()
         plt.close()
-
+        plt.cla()
+        env.render_all()
+        plt.show()
         plt.style.use('ggplot')
         plt.plot(steps, average_cummulative_reward)
         plt.xlabel('steps')
