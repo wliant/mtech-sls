@@ -102,6 +102,10 @@ class Evaluator:
                 plt.cla()
                 env.render_all()
                 plt.show()
+                plt.plot(data[:, [0]], data[:, [2]])
+                plt.xlabel('steps')
+                plt.ylabel('Cummulative Reward')
+                plt.show()
             print()
             if env._total_reward > best_total_reward:
                 agent.save_weights(self.weight_file, overwrite=True)
