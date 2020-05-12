@@ -1,3 +1,5 @@
 env/*
 *.h5f
 .ipynb_checkpoints/*
+evaluate_*
+__pycache__/*
