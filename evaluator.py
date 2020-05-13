@@ -120,7 +120,7 @@ class Evaluator:
             self.log("train {} completed. took {:.3f} seconds, total_reward: {} total_profit: {}".format(i+1, duration, env._total_reward, env._total_profit))
             self.log("min reward: {}, max reward: {}, mean_reward: {}".format(min_data[1], max_data[1], mean_data[1]))
 
-            metrics = np.loadtxt("evaluate_dqn/train_1_metric.csv")
+            metrics = np.loadtxt("{}/{}.csv".format(self.folder_name, i+1))
             col = np.array([[i+1] for i in range(len(metrics))])
             m = np.zeros((metrics.shape[0],metrics.shape[1]+1))
             m[:, 1:] = metrics
