@@ -9,6 +9,7 @@ import os
 import csv
 import glob
 import shutil
+from keras.utils import plot_model
 
 class CumulativeRewardLogger(TrainIntervalLogger):
     def __init__(self, env, filename, metricFile, interval=20):
@@ -87,6 +88,11 @@ class Evaluator:
         self.log_file = os.path.join(self.folder_name, "log.log")
         self.quiet = quiet
 
+    def log_agent_info(self, info):
+        self.log(info)
+    def log_agent_model(self, model, name):
+        file_name = "{}/{}.png".format(self.folder_name, name)
+        plot_model(model, file_name)
 
     def log(self, text):
         with open(self.log_file, 'a') as outfile:
@@ -188,10 +194,8 @@ class Evaluator:
         max_data = np.max(data, axis=0)
         min_data = np.min(data, axis=0)
         mean_data = np.mean(data, axis=0)
-        print()
-        print("test completed. total_reward: {} total_profit: {}".format(env._total_reward, env._total_profit))
-        print("min reward: {}, max reward: {}, mean_reward: {}".format(min_data[1], max_data[1], mean_data[1]))
-        print()
+        self.log("test completed. total_reward: {} total_profit: {}".format(env._total_reward, env._total_profit))
+        self.log("min reward: {}, max reward: {}, mean_reward: {}".format(min_data[1], max_data[1], mean_data[1]))
         steps = data[:, [0]]
         average_cummulative_reward = data[:, [2]]
         plt.close()
