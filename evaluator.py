@@ -172,6 +172,7 @@ class Evaluator:
         steps = mean_reward[:, [0]]
         average_cummulative_reward = mean_reward[:, [2]]
 
+        self.log("average of total_reward across trainings: {}".format(average_cummulative_reward[len(average_cummulative_reward) -1 ]))
         plt.clf()
         plt.close()
         plt.style.use('ggplot')
