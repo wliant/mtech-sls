@@ -160,6 +160,8 @@ class Evaluator:
 
             if env._total_reward > best_total_reward:
                 agent.save_weights(self.weight_file, overwrite=True)
+                best_total_reward = env._total_reward
+        print('best total_rewards: {}'.format(best_total_reward))
 
 
     def process_train_result(self, showDiagram=True):
