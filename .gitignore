@@ -4,3 +4,5 @@ env/*
 evaluate_*
 __pycache__/*
 .vscode/*
+Untitled.ipynb
+g_evaluator.py
